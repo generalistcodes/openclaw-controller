@@ -14,6 +14,8 @@ So I built this controller: it only toggles *when* the gateway runs (start/stop)
 
 **Note:** OpenClaw’s CLI already has `openclaw gateway start`, `stop`, and `status`. I created this wrapper because (1) one script to run instead of remembering the gateway subcommands, (2) on my Mac the OpenClaw CLI sometimes failed (e.g. network interface errors), so this uses `launchctl` directly and keeps start/stop/status working, and (3) a single place to add things like scheduling or “restart” later.
 
+**P.S.** Same outcome (gateway on or off), different implementation: this script talks to `launchctl` directly; the OpenClaw CLI uses its own code (and may call launchctl too). So when the CLI breaks, this still works.
+
 ## What this does
 
 - **`start`** — Starts the OpenClaw gateway (on macOS with LaunchAgent: `launchctl load`).
