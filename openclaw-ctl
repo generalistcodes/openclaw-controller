@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# OpenClaw controller: start/stop the gateway on demand to save energy.
+# Requires OpenClaw installed and `openclaw` on PATH.
+# On macOS, if the gateway is installed as a LaunchAgent, uses launchctl.
+
+set -e
+
+PORT="${OPENCLAW_PORT:-18789}"
+CMD="${OPENCLAW_CMD:-openclaw}"
+LAUNCH_AGENT_PLIST="${HOME}/Library/LaunchAgents/ai.openclaw.gateway.plist"
+
+description() {
+  cat << 'EOF'
+OpenClaw Controller — control when the OpenClaw gateway runs.
+
+OpenClaw normally runs 24/7 as a local AI assistant. This utility lets you
+start and stop the gateway on demand so you can save energy when you are not
+using it. OpenClaw stays installed; only its run state is toggled.
+
+On macOS, if the gateway was installed as a LaunchAgent (openclaw gateway
+install), this script uses launchctl to load/unload the service. Otherwise
+it starts or stops the gateway process directly.
+EOF
+}
+
+usage() {
+  echo "Usage: $0 {start|stop|status|help}"
+  echo "  start  - start OpenClaw gateway (port $PORT)"
+  echo "  stop   - stop OpenClaw gateway"
+  echo "  status - show gateway status"
+  echo "  help   - show this description and usage"
+  exit 1
+}
+
+cmd_help() {
+  description
+  echo ""
+  echo "Commands:"
+  echo "  start   Start the gateway. On macOS with LaunchAgent: load the service."
+  echo "  stop    Stop the gateway. On macOS with LaunchAgent: unload the service."
+  echo "  status  Show whether the gateway is running (or LaunchAgent loaded)."
+  echo "  help    Show this help."
+  echo ""
+  echo "Options (environment):"
+  echo "  OPENCLAW_PORT  Gateway port (default: 18789)."
+  echo "  OPENCLAW_CMD   OpenClaw binary name (default: openclaw)."
+  exit 0
+}
+
+check_openclaw() {
+  if ! command -v "$CMD" &>/dev/null; then
+    echo "Error: '$CMD' not found. Install OpenClaw and ensure it is on PATH." >&2
+    exit 2
+  fi
+}
+
+# Use LaunchAgent on macOS when the plist exists.
+use_launch_agent() {
+  [[ "$(uname -s)" == "Darwin" && -f "$LAUNCH_AGENT_PLIST" ]]
+}
+
+service_loaded() {
+  launchctl list 2>/dev/null | grep -q "ai.openclaw.gateway"
+}
+
+cmd_start() {
+  if use_launch_agent; then
+    if service_loaded; then
+      echo "OpenClaw gateway (LaunchAgent) is already running."
+      return 0
+    fi
+    echo "Starting OpenClaw gateway (LaunchAgent)..."
+    launchctl load "$LAUNCH_AGENT_PLIST"
+    echo "OpenClaw gateway started. Use '$0 stop' to stop."
+    return 0
+  fi
+  check_openclaw
+  if "$CMD" gateway status 2>/dev/null | grep -q "running"; then
+    echo "OpenClaw gateway is already running."
+    return 0
+  fi
+  echo "Starting OpenClaw gateway on port $PORT..."
+  nohup "$CMD" gateway --port "$PORT" &>/dev/null &
+  disown
+  sleep 1
+  if "$CMD" gateway status 2>/dev/null | grep -q "running"; then
+    echo "OpenClaw gateway started. Use '$0 stop' to stop."
+  else
+    echo "Start may still be in progress. Check with '$0 status'."
+  fi
+}
+
+cmd_stop() {
+  if use_launch_agent; then
+    if ! service_loaded; then
+      echo "OpenClaw gateway (LaunchAgent) is not running."
+      return 0
+    fi
+    echo "Stopping OpenClaw gateway (LaunchAgent)..."
+    launchctl unload "$LAUNCH_AGENT_PLIST"
+    echo "OpenClaw gateway stopped."
+    return 0
+  fi
+  check_openclaw
+  if ! "$CMD" gateway status 2>/dev/null | grep -q "running"; then
+    echo "OpenClaw gateway is not running."
+    return 0
+  fi
+  echo "Stopping OpenClaw gateway..."
+  "$CMD" gateway stop
+}
+
+cmd_status() {
+  if use_launch_agent; then
+    if service_loaded; then
+      echo "OpenClaw gateway (LaunchAgent): running"
+      launchctl list ai.openclaw.gateway 2>/dev/null || true
+    else
+      echo "OpenClaw gateway (LaunchAgent): not loaded"
+    fi
+    return 0
+  fi
+  check_openclaw
+  "$CMD" gateway status
+}
+
+case "${1:-}" in
+  start)  cmd_start ;;
+  stop)   cmd_stop ;;
+  status) cmd_status ;;
+  help|-h|--help) cmd_help ;;
+  *)      usage ;;
+esac
