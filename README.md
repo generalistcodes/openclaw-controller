@@ -12,6 +12,8 @@ OpenClaw runs as a 24/7 local AI assistant (gateway on port 18789, often install
 
 So I built this controller: it only toggles *when* the gateway runs (start/stop), not *whether* it’s installed.
 
+**Note:** OpenClaw’s CLI already has `openclaw gateway start`, `stop`, and `status`. I created this wrapper because (1) one script to run instead of remembering the gateway subcommands, (2) on my Mac the OpenClaw CLI sometimes failed (e.g. network interface errors), so this uses `launchctl` directly and keeps start/stop/status working, and (3) a single place to add things like scheduling or “restart” later.
+
 ## What this does
 
 - **`start`** — Starts the OpenClaw gateway (on macOS with LaunchAgent: `launchctl load`).
