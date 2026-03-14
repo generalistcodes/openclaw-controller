@@ -1,4 +1,4 @@
-# OpenClaw Controller
+# OpenClaw Controller 🦞
 
 A small utility to **start and stop the OpenClaw gateway on demand** so you can save energy without uninstalling or breaking OpenClaw.
 
